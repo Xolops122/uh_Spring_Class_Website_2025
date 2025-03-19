@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROT Encryption/Decryption</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 100px;
+        }
+        input, textarea {
+            width: 80%;
+            margin: 10px;
+            padding: 5px;
+        }
+        button {
+            padding: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>ROT Encryption/Decryption</h1>
+    <p>Enter ROT number:</p>
+    <input type="number" id="rotNumber" min="1" max="25" value="13">
+    <br>
+    <textarea id="inputText" placeholder="Enter text here..."></textarea>
+    <br>
+    <button onclick="encryptText()">Encrypt</button>
+    <button onclick="decryptText()">Decrypt</button>
+    <h2>Result:</h2>
+    <textarea id="outputText" readonly></textarea>
+
+    <script>
+        function rotCipher(text, shift) {
+            return text.split('').map(char => {
+                if (char.match(/[a-z]/i)) {
+                    let code = char.charCodeAt(0);
+                    let base = code >= 65 && code <= 90 ? 65 : 97;
+                    return String.fromCharCode(((code - base + shift) % 26) + base);
+                }
+                return char;
+            }).join('');
+        }
+       
+        function encryptText() {
+            let shift = parseInt(document.getElementById('rotNumber').value) % 26;
+            let inputText = document.getElementById('inputText').value;
+            document.getElementById('outputText').value = rotCipher(inputText, shift);
+        }
+       
+        function decryptText() {
+            let shift = parseInt(document.getElementById('rotNumber').value) % 26;
+            let inputText = document.getElementById('inputText').value;
+            document.getElementById('outputText').value = rotCipher(inputText, 26 - shift);
+        }
+    </script>
+</body>
+</html>

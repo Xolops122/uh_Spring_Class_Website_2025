@@ -1,0 +1,329 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pixel-Art Space Shooter</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      overflow: hidden;
+      text-align: center;
+    }
+    #gameContainer {
+      margin: 30px auto;
+      position: relative;
+      background: #111;
+      border: 2px solid #444;
+      width: 640px;
+      height: 480px;
+    }
+    canvas {
+      background: #222;
+      display: block;
+      margin: 0 auto;
+    }
+    #startBtn, #restartBtn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 10px 20px;
+      font-size: 18px;
+      background: #ff416c;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #scoreDisplay {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      text-align: left;
+      font-size: 14px;
+      color: #0f0;
+    }
+    #gameOverOverlay {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <div id="info">
+      <p>Left/Right: Move</p>
+      <p>Space: Shoot</p>
+      <p>Enemy shoots every 2s</p>
+    </div>
+    <div id="scoreDisplay">Score: 0</div>
+    <canvas id="gameCanvas" width="640" height="480"></canvas>
+    <button id="startBtn">Start</button>
+    <div id="gameOverOverlay">
+      <h1>Game Over</h1>
+      <p id="finalScoreText"></p>
+      <button id="restartBtn">Restart</button>
+    </div>
+  </div>
+
+  <script>
+    // === DOM references ===
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const startBtn = document.getElementById("startBtn");
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const gameOverOverlay = document.getElementById("gameOverOverlay");
+    const finalScoreText = document.getElementById("finalScoreText");
+    const restartBtn = document.getElementById("restartBtn");
+
+    // === PIXEL ART DEFINITIONS ===
+    // Winged player (21x12), scaled x2 => 42x24
+    const playerPixels = [
+      "..........X..........",
+      ".........XXX.........",
+      "........XXXXX........",
+      ".......XXXXXXX.......",
+      "......XXXXXXXXX......",
+      ".....XXXXXXXXXXX.....",
+      "....XXXXXXXXX.XXXX...",
+      "....XXXXXXX...XXXX...",
+      "...XXXXXXXXXXXXX.X...",
+      "..XXXXXXXXXXXXXXX....",
+      ".XXXXXXXXXXXXXXXXX...",
+      "XXXXXXXXXXXXXXXXXXXXX"
+    ];
+    // Evil enemy (14x10), scaled x2 => 28x20
+    const enemyPixels = [
+      "......XX......",
+      ".....XXXX.....",
+      "....XXXXXXXX..",
+      "...XXXXXXXXX..",
+      "...XXXXXXXXXX.",
+      "..XXXX..XXXX..",
+      "..XXXXXXXXXX..",
+      "..XXXXXXXXXX..",
+      "..XXXXXXXXXX..",
+      "..XXXXXXXXXX.."
+    ];
+
+    const PLAYER_SCALE = 2;
+    const ENEMY_SCALE = 2;
+
+    const playerBW = playerPixels[0].length * PLAYER_SCALE; // 21*2 = 42
+    const playerBH = playerPixels.length * PLAYER_SCALE;    // 12*2 = 24
+    const enemyBW  = enemyPixels[0].length * ENEMY_SCALE;   // 14*2 = 28
+    const enemyBH  = enemyPixels.length * ENEMY_SCALE;      // 10*2 = 20
+
+    // === Helper: draw pixel-art ===
+    function drawPixelArt(pxArr, x, y, scale, color) {
+      ctx.fillStyle = color;
+      for (let row = 0; row < pxArr.length; row++) {
+        for (let col = 0; col < pxArr[row].length; col++) {
+          if (pxArr[row][col] === 'X') {
+            ctx.fillRect(x + col*scale, y + row*scale, scale, scale);
+          }
+        }
+      }
+    }
+
+    // === GAME VARIABLES ===
+    let gameRunning = false;
+    let score = 0;
+    let keys = {};
+    let shooting = false;
+    let lastShotTime = 0;
+    const shootCooldown = 150;
+
+    const player = {
+      x: 0, y: 0, w: playerBW, h: playerBH, speed: 5
+    };
+    let enemy = {
+      x: 0, y: 0, w: enemyBW, h: enemyBH, speed: 1.5
+    };
+
+    let bullets = [];      // Player bullets
+    let enemyBullets = []; // Enemy bullets
+    let lastEnemyShotTime = 0;
+    const enemyShootInterval = 2000; // 2s
+
+    // === EVENT LISTENERS ===
+    window.addEventListener("keydown", e => {
+      keys[e.code] = true;
+      if (e.code === "Space") shooting = true;
+    });
+    window.addEventListener("keyup", e => {
+      keys[e.code] = false;
+      if (e.code === "Space") shooting = false;
+    });
+
+    startBtn.addEventListener("click", () => {
+      startBtn.style.display = "none";
+      startGame();
+    });
+    restartBtn.addEventListener("click", () => {
+      gameOverOverlay.style.display = "none";
+      startGame();
+    });
+
+    // === START GAME ===
+    function startGame() {
+      gameRunning = true;
+      score = 0;
+
+      // Center player near bottom
+      player.x = (canvas.width - player.w)/2;
+      player.y = canvas.height - player.h - 20;
+
+      // Enemy near top
+      enemy.x = (canvas.width - enemy.w)/2;
+      enemy.y = 50;
+      enemy.speed = 1.5;
+
+      bullets = [];
+      enemyBullets = [];
+      lastShotTime = 0;
+      lastEnemyShotTime = 0;
+
+      gameOverOverlay.style.display = "none";
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // === GAME LOOP ===
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      update(timestamp);
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function update(timestamp) {
+      // Player movement
+      if (keys["ArrowLeft"] && player.x > 0) {
+        player.x -= player.speed;
+      }
+      if (keys["ArrowRight"] && (player.x + player.w < canvas.width)) {
+        player.x += player.speed;
+      }
+      // Shooting
+      if (shooting && timestamp - lastShotTime > shootCooldown) {
+        firePlayerBullet();
+        lastShotTime = timestamp;
+      }
+      // Move bullets
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        bullets[i].y -= bullets[i].speed;
+        if (bullets[i].y + bullets[i].h < 0) bullets.splice(i,1);
+      }
+      // Move enemy
+      enemy.y += enemy.speed;
+      if (enemy.y > canvas.height) {
+        enemy.y = -enemy.h;
+        enemy.x = Math.random()*(canvas.width - enemy.w);
+      }
+      // Enemy shooting
+      if (timestamp - lastEnemyShotTime > enemyShootInterval) {
+        fireEnemyBullet();
+        lastEnemyShotTime = timestamp;
+      }
+      // Move enemy bullets
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        enemyBullets[i].y += enemyBullets[i].speed;
+        if (enemyBullets[i].y > canvas.height) enemyBullets.splice(i,1);
+      }
+      checkCollisions();
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw player
+      drawPixelArt(playerPixels, player.x, player.y, 2, "#44f");
+      // Draw enemy
+      drawPixelArt(enemyPixels, enemy.x, enemy.y, 2, "#f44");
+      // Player bullets
+      ctx.fillStyle = "yellow";
+      bullets.forEach(b => ctx.fillRect(b.x,b.y,b.w,b.h));
+      // Enemy bullets
+      ctx.fillStyle = "pink";
+      enemyBullets.forEach(b => ctx.fillRect(b.x,b.y,b.w,b.h));
+    }
+
+    // === COLLISIONS ===
+    function checkCollisions() {
+      // Player bullets vs Enemy
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        if (isColliding(bullets[i], enemy)) {
+          bullets.splice(i,1);
+          score += 10;
+          enemy.y = -enemy.h;
+          enemy.x = Math.random()*(canvas.width - enemy.w);
+        }
+      }
+      // Enemy bullets vs Player
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        if (isColliding(enemyBullets[i], player)) {
+          gameOver();
+        }
+      }
+      // Enemy vs Player
+      if (isColliding(enemy, player)) {
+        gameOver();
+      }
+    }
+    function isColliding(a,b){
+      return (
+        a.x < b.x+b.w &&
+        a.x+a.w > b.x &&
+        a.y < b.y+b.h &&
+        a.y+a.h > b.y
+      );
+    }
+
+    // === FIRE BULLETS ===
+    function firePlayerBullet(){
+      bullets.push({
+        x: player.x + player.w/2 -2,
+        y: player.y -5,
+        w: 4,
+        h: 10,
+        speed: 8
+      });
+    }
+    function fireEnemyBullet(){
+      enemyBullets.push({
+        x: enemy.x + enemy.w/2 -2,
+        y: enemy.y + enemy.h,
+        w: 4,
+        h: 10,
+        speed: 3
+      });
+    }
+
+    // === GAME OVER ===
+    function gameOver(){
+      gameRunning = false;
+      finalScoreText.textContent = `Your final score: ${score}`;
+      gameOverOverlay.style.display = "flex";
+    }
+  </script>
+</body>
+</html>
