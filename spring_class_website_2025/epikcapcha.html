@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reCAPTCHA Battle</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .captcha-container {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ccc;
+            padding: 10px;
+            width: 300px;
+            border-radius: 5px;
+            background: #f9f9f9;
+            cursor: pointer;
+            margin: 50px auto;
+            position: relative;
+        }
+        .captcha-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #888;
+            display: inline-block;
+            margin-right: 10px;
+            cursor: pointer;
+            background: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+            line-height: 20px;
+        }
+        .captcha-text {
+            flex: 1;
+        }
+        .game-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px;
+            height: 500px;
+            background: white;
+            border: 2px solid black;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            text-align: center;
+        }
+        .game-popup iframe {
+            width: 100%;
+            height: 100%;
+        }
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .scrolling-text {
+            position: absolute;
+            top: -40px;
+            left: 100%;
+            white-space: nowrap;
+            font-size: 14px;
+            font-weight: bold;
+            color: red;
+            display: block;
+        }
+
+        .shake {
+            animation: shakeMoveWithMove 0.5s ease-in-out infinite;
+        }
+
+        @keyframes shakeMoveWithMove {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 30px;
+            height: 30px;
+            border: 4px solid transparent;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .captcha-container.waiting {
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="captcha-container" onclick="startTimer()">
+        <div class="captcha-checkbox" id="captchaCheckbox"></div>
+        <div class="captcha-text">I'm not a robot</div>
+        <div class="loading-spinner" id="loadingSpinner"></div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="game-popup" id="gamePopup">
+        <div class="scrolling-text" id="scrollingText"> To verify, you need to beat the game! ⚔️</div>
+        <iframe src="sans.html"></iframe>
+    </div>
+
+    <script>
+        let timer;
+        let timeLeft = 100000; // Timer duration in seconds
+        let scrollingText = document.getElementById('scrollingText');
+
+        function startTimer() {
+            // Disable the CAPTCHA to prevent multiple clicks while waiting
+            const captchaContainer = document.querySelector('.captcha-container');
+            captchaContainer.classList.add('waiting');
+
+            // Show the spinner while waiting for verification
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById("captchaCheckbox").textContent = ""; // Clear the checkbox
+
+            // Show scrolling text in the popup
+            scrollingText.style.display = "block";
+
+            // Open the game popup
+            openGame();
+
+            // Reset timer if already running
+            clearTimeout(timer);
+            timeLeft = 300;
+
+            // Start the timer countdown
+            timer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    failCaptcha();
+                } else if (timeLeft <= 3) {
+                    // Shake and move the text when time is almost up
+                    scrollingText.classList.add("shake");
+                }
+
+                document.getElementById("scrollingText").textContent = `⚔️ To verify, you need to beat the game! (${timeLeft}s)`;
+            }, 1000);
+
+            // Call function to start scrolling text
+            moveScrollingText();
+        }
+
+        function openGame() {
+            document.getElementById("gamePopup").style.display = "block";
+            document.getElementById("overlay").style.display = "block";
+        }
+
+        function closeGame() {
+            document.getElementById("gamePopup").style.display = "none";
+            document.getElementById("overlay").style.display = "none";
+        }
+
+        function failCaptcha() {
+            const scrollingText = document.getElementById("scrollingText");
+            scrollingText.classList.remove("shake"); // Remove shaking effect
+            scrollingText.textContent = "❌ Failed!";
+            document.getElementById("captchaCheckbox").textContent = "❌";
+
+            // Hide spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+
+            // Close the pop-up after a short delay
+            setTimeout(() => {
+                closeGame();
+                // Allow user to retry by removing the 'waiting' class
+                const captchaContainer = document.querySelector('.captcha-container');
+                captchaContainer.classList.remove('waiting');
+            }, 1000);
+        }
+
+        function passCaptcha() {
+            clearInterval(timer);
+            const scrollingText = document.getElementById("scrollingText");
+            scrollingText.classList.remove("shake"); // Remove shaking effect
+            scrollingText.textContent = "✅ Verified!";
+            document.getElementById("captchaCheckbox").textContent = "✅";
+
+            // Hide spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+
+            closeGame();
+        }
+
+        // Function to handle scrolling text animation
+        function moveScrollingText() {
+            const textWidth = scrollingText.offsetWidth;
+            const screenWidth = window.innerWidth;
+
+            // Set initial position to the right of the screen
+            let startPosition = screenWidth;
+            scrollingText.style.left = startPosition + 'px';
+
+            // Animate the text by moving it from right to left
+            function animateText() {
+                startPosition--;
+
+                if (startPosition + textWidth < 0) {
+                    startPosition = screenWidth;
+                }
+
+                scrollingText.style.left = startPosition + 'px';
+
+                // Call the animateText function again on the next frame
+                requestAnimationFrame(animateText);
+            }
+
+            // Start the animation
+            animateText();
+        }
+    </script>
+
+</body>
+</html>

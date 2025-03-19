@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!--
+  Spring_Class_Website_2025: cooltextthing
+  Description: 
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Your Title Here</title>
+  </head>
+  <body>
+    <!-- Your HTML Here -->
+    <!-- Animation Section -->
+  <div class="animation-section">
+    <h2>Create Your Animated Text</h2>
+    <!-- Enlarged display box -->
+    <iframe id="animationFrame" width="800" height="400" style="border:1px solid #ccc; margin-top:20px;"></iframe>
+    <br />
+    <input type="text" id="animatedText" placeholder="Enter some text" />
+    <button onclick="showAnimation()">Animate Text</button>
+  </div>
+
+  <script>
+    function showAnimation() {
+      const userText = document.getElementById('animatedText').value || "Hello World!";
+     
+      // Build an HTML page for the iframe with canvas-based particle animation.
+      // This version wraps long text onto multiple lines and dynamically adjusts the font size.
+      const htmlContent = `
+        <html>
+          <head>
+            <style>
+              body {
+                margin: 0;
+                padding: 0;
+                background: #111;
+                overflow: hidden;
+              }
+              canvas {
+                display: block;
+              }
+            </style>
+          </head>
+          <body>
+            <canvas id="canvas"></canvas>
+            <script>
+              (function() {
+                const canvas = document.getElementById('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+               
+                const text = ${JSON.stringify(userText)};
+                const particles = [];
+               
+                // Create an offscreen canvas to render the text
+                const offCanvas = document.createElement('canvas');
+                const offCtx = offCanvas.getContext('2d');
+                offCanvas.width = canvas.width;
+                offCanvas.height = canvas.height;
+               
+                // Helper function: word-wrap the text for a given max width.
+                function wrapText(context, text, maxWidth) {
+                  const words = text.split(' ');
+                  const lines = [];
+                  let currentLine = words[0];
+                  for (let i = 1; i < words.length; i++) {
+                    const word = words[i];
+                    const width = context.measureText(currentLine + ' ' + word).width;
+                    if (width < maxWidth) {
+                      currentLine += ' ' + word;
+                    } else {
+                      lines.push(currentLine);
+                      currentLine = word;
+                    }
+                  }
+                  lines.push(currentLine);
+                  return lines;
+                }
+               
+                // Dynamically adjust font size so that multi-line text fits within the canvas.
+                const maxWidth = canvas.width * 0.9;
+                const maxHeight = canvas.height * 0.9;
+                let fontSize = 120; // starting font size
+                offCtx.textAlign = 'center';
+                offCtx.textBaseline = 'middle';
+                let lines = [];
+                let lineHeight = 0;
+                // Reduce font size until the text block fits.
+                do {
+                  offCtx.font = 'bold ' + fontSize + 'px Arial';
+                  lines = wrapText(offCtx, text, maxWidth);
+                  lineHeight = fontSize * 1.2;
+                  if (lines.length * lineHeight > maxHeight) {
+                    fontSize = fontSize * 0.9; // reduce font size
+                  } else {
+                    break;
+                  }
+                } while (fontSize > 10);
+               
+                // Clear offscreen canvas and render multi-line text
+                offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+                offCtx.font = 'bold ' + fontSize + 'px Arial';
+                offCtx.fillStyle = 'white';
+                // Center text block vertically
+                const textBlockHeight = lines.length * lineHeight;
+                let startY = (canvas.height - textBlockHeight) / 2 + lineHeight / 2;
+                lines.forEach(line => {
+                  offCtx.fillText(line, canvas.width / 2, startY);
+                  startY += lineHeight;
+                });
+               
+                // Generate particles from the offscreen canvas (sampling every 4 pixels)
+                const imageData = offCtx.getImageData(0, 0, canvas.width, canvas.height);
+                for (let y = 0; y < canvas.height; y += 4) {
+                  for (let x = 0; x < canvas.width; x += 4) {
+                    const index = (y * canvas.width + x) * 4;
+                    if (imageData.data[index + 3] > 128) {
+                      particles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        targetX: x,
+                        targetY: y,
+                        vx: 0,
+                        vy: 0
+                      });
+                    }
+                  }
+                }
+               
+                // Define style configurations for particle color, radius, and fade intensity.
+                let currentStyleIndex = 0;
+                const styles = [
+                  { particleColor: '#ff005d', particleRadius: 2, fadeAlpha: 0.3 },
+                  { particleColor: '#00ff66', particleRadius: 3, fadeAlpha: 0.25 },
+                  { particleColor: '#0099ff', particleRadius: 2, fadeAlpha: 0.2 },
+                  { particleColor: '#ff00cc', particleRadius: 4, fadeAlpha: 0.35 },
+                  { particleColor: '#ffff00', particleRadius: 2, fadeAlpha: 0.3 }
+                ];
+               
+                // Define multiple particle animation modes (8 modes)
+                // 0: Converge
+                // 1: Swirl
+                // 2: Oscillate
+                // 3: Jitter
+                // 4: Spiral
+                // 5: Bounce
+                // 6: Wave
+                // 7: Explode
+                let particleMode = 0;
+                const totalModes = 8;
+               
+                // Cycle through styles and choose a new random particle mode every 5 seconds.
+                setInterval(() => {
+                  currentStyleIndex = (currentStyleIndex + 1) % styles.length;
+                  particleMode = Math.floor(Math.random() * totalModes);
+                }, 5000);
+               
+                // Animation loop: update particles based on the selected mode.
+                function animate() {
+                  const currentStyle = styles[currentStyleIndex];
+                  ctx.fillStyle = 'rgba(17, 17, 17, ' + currentStyle.fadeAlpha + ')';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                 
+                  particles.forEach(p => {
+                    switch (particleMode) {
+                      case 0: // Converge
+                        p.vx += (p.targetX - p.x) * 0.05;
+                        p.vy += (p.targetY - p.y) * 0.05;
+                        break;
+                      case 1: // Swirl
+                        let angle = Math.atan2(p.targetY - p.y, p.targetX - p.x);
+                        p.vx += Math.cos(angle + Math.PI/2) * 0.05 + (p.targetX - p.x) * 0.03;
+                        p.vy += Math.sin(angle + Math.PI/2) * 0.05 + (p.targetY - p.y) * 0.03;
+                        break;
+                      case 2: // Oscillate
+                        p.vx += (p.targetX - p.x + Math.sin(Date.now()/100 + p.x)*5) * 0.04;
+                        p.vy += (p.targetY - p.y + Math.cos(Date.now()/100 + p.y)*5) * 0.04;
+                        break;
+                      case 3: // Jitter
+                        p.vx += (p.targetX - p.x) * 0.05 + (Math.random() - 0.5) * 2;
+                        p.vy += (p.targetY - p.y) * 0.05 + (Math.random() - 0.5) * 2;
+                        break;
+                      case 4: // Spiral
+                        {
+                          let baseAngle = Math.atan2(p.targetY - p.y, p.targetX - p.x);
+                          p.vx += Math.cos(baseAngle + 0.5) * 0.05 + (p.targetX - p.x) * 0.05;
+                          p.vy += Math.sin(baseAngle + 0.5) * 0.05 + (p.targetY - p.y) * 0.05;
+                        }
+                        break;
+                      case 5: // Bounce
+                        p.vx += (p.targetX - p.x) * 0.05 + Math.sin(Date.now()/200 + p.x) * 0.1;
+                        p.vy += (p.targetY - p.y) * 0.05 + Math.sin(Date.now()/200 + p.y) * 0.1;
+                        break;
+                      case 6: // Wave
+                        p.vx += (p.targetX - p.x) * 0.04 + Math.sin(Date.now()/150 + p.y/20) * 0.5;
+                        p.vy += (p.targetY - p.y) * 0.04;
+                        break;
+                      case 7: // Explode
+                        p.vx += ((p.x - canvas.width/2) * 0.02) + (p.targetX - p.x) * 0.04;
+                        p.vy += ((p.y - canvas.height/2) * 0.02) + (p.targetY - p.y) * 0.04;
+                        break;
+                      default:
+                        p.vx += (p.targetX - p.x) * 0.05;
+                        p.vy += (p.targetY - p.y) * 0.05;
+                    }
+                   
+                    p.vx *= 0.92;
+                    p.vy *= 0.92;
+                    p.x += p.vx;
+                    p.y += p.vy;
+                   
+                    ctx.fillStyle = currentStyle.particleColor;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, currentStyle.particleRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                  });
+                 
+                  requestAnimationFrame(animate);
+                }
+                animate();
+              })();
+            <\/script>
+          </body>
+        </html>
+      `;
+     
+      const iframe = document.getElementById('animationFrame');
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(htmlContent);
+      iframe.contentDocument.close();
+    }
+  </script>
+</body>
+</html>
+  </body>
+</html>
